@@ -43,7 +43,7 @@ class Kohana_Cron
 	 */
 	protected static function _lock()
 	{
-		$config = Kohana::config('cron');
+		$config = Kohana::$config->load('cron');
 		$result = FALSE;
 
 		if (file_exists($config->lock) AND ($stat = @stat($config->lock)) AND time() - $config->window < $stat['mtime'])
@@ -80,7 +80,7 @@ class Kohana_Cron
 	 */
 	protected static function _save()
 	{
-		Kohana::cache("Cron::run()", Cron::$_times, Kohana::config('cron')->window * 2);
+		Kohana::cache("Cron::run()", Cron::$_times, Kohana::$config->load('cron')->window * 2);
 	}
 
 	/**
@@ -88,7 +88,7 @@ class Kohana_Cron
 	 */
 	protected static function _unlock()
 	{
-		return @unlink(Kohana::config('cron')->lock);
+		return @unlink(Kohana::$config->load('cron')->lock);
 	}
 
 	/**
@@ -107,7 +107,7 @@ class Kohana_Cron
 			Cron::_load();
 
 			$now = time();
-			$threshold = $now - Kohana::config('cron')->window;
+			$threshold = $now - Kohana::$config->load('cron')->window;
 
 			foreach (Cron::$_jobs as $name => $job)
 			{
@@ -588,7 +588,7 @@ class Kohana_Cron
 
 		foreach (explode(',', $value) as $value)
 		{
-			if ($slash = strrpos($value, '/'))
+			if (($slash = strrpos($value, '/')) !== false)
 			{
 				$step = (int) substr($value, $slash + 1);
 				$value = substr($value, 0, $slash);
@@ -598,7 +598,7 @@ class Kohana_Cron
 			{
 				$result = array_merge($result, range($min, $max, $slash ? $step : 1));
 			}
-			elseif ($dash = strpos($value, '-'))
+			elseif (($dash = strpos($value, '-')) !== false)
 			{
 				$result = array_merge($result, range(max($min, (int) substr($value, 0, $dash)), min($max, (int) substr($value, $dash + 1)), $slash ? $step : 1));
 			}
