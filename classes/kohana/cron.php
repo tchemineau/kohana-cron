@@ -43,7 +43,7 @@ class Kohana_Cron
 	 */
 	protected static function _lock()
 	{
-		$config = Kohana::config('cron');
+		$config = Kohana::$config->load('cron');
 		$result = FALSE;
 
 		if (file_exists($config->lock) AND ($stat = @stat($config->lock)) AND time() - $config->window < $stat['mtime'])
@@ -80,7 +80,7 @@ class Kohana_Cron
 	 */
 	protected static function _save()
 	{
-		Kohana::cache("Cron::run()", Cron::$_times, Kohana::config('cron')->window * 2);
+		Kohana::cache("Cron::run()", Cron::$_times, Kohana::$config->load('cron')->window * 2);
 	}
 
 	/**
