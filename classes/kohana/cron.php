@@ -88,7 +88,7 @@ class Kohana_Cron
 	 */
 	protected static function _unlock()
 	{
-		return @unlink(Kohana::config('cron')->lock);
+		return @unlink(Kohana::$config->load('cron')->lock);
 	}
 
 	/**
@@ -107,7 +107,7 @@ class Kohana_Cron
 			Cron::_load();
 
 			$now = time();
-			$threshold = $now - Kohana::config('cron')->window;
+			$threshold = $now - Kohana::$config->load('cron')->window;
 
 			foreach (Cron::$_jobs as $name => $job)
 			{
