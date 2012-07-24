@@ -91,8 +91,8 @@ Some jobs takes a lot of time, for example, and some jobs you need to be done qu
 
 	Cron::set('generate_simple_html', array('* * * * *', 'Site::regenerate_simple_page')); // takes few seconds
 
-In common case you'll get some simple html page (from Site::regenerate_simple_page method) only after previous tasks
-would be complited, it's about ~4 hours. Every next Cron::run() execution will be halted while lock-file exists.
+In common case you'll get some simple html page (from `Site::regenerate_simple_page()` method) only after previous tasks
+would be complited, it's about ~4 hours. Every next `Cron::run()` execution will be halted while lock-file exists.
 
 1) We can add group identifier for every job:
 
@@ -101,15 +101,15 @@ would be complited, it's about ~4 hours. Every next Cron::run() execution will b
 
     Cron::set('generate_simple_html', array('* * * * *', 'Site::regenerate_simple_page'), 'quick_tasks');
 
-2) And put 2 rules to crontab for every new stream...
+2) And put 2 rules to crontab for every new stream
 
     * * * * * /usr/bin/php -f /path/to/kohana/modules/cron/run.php catalog_tasks
     * * * * * /usr/bin/php -f /path/to/kohana/modules/cron/run.php quick_tasks
 
     * * * * * /usr/bin/php -f /path/to/kohana/modules/cron/run.php # will handle default jobs, without group identifier
 
-First cron process will start Cron::run() method for _catalog_tasks_ group and it will take about 4 hours before it start
-next Cron::run() method for _quick_tasks_ group
+First cron process will start `Cron::run()` method for _catalog_tasks_ group and it will take about 4 hours before it start
+next `Cron::run()` method for _quick_tasks_ group
 
 But second cron process (at next minute) will skip _catalog_task_ (because lock-file for that group exists) and execute
 _quick_tasks_ jobs
