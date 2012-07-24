@@ -17,6 +17,9 @@ if (file_exists($system))
 
 	include $system;
 
+    if(!empty($_SERVER['argv'][1]))
+        Cron::set_group($_SERVER['argv'][1]);
+
 	// If Cron has been run in APPPATH/bootstrap.php, this second call is harmless
 	Cron::run();
 }

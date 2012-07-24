@@ -11,6 +11,8 @@ class Kohana_Cron
 {
 	protected static $_jobs = array();
 	protected static $_times = array();
+    protected static $_current_group = 'default';
+    protected static $_current_lock;
 
 	/**
 	 * Registers a job to be run
@@ -18,15 +20,46 @@ class Kohana_Cron
 	 * @param   string      Unique name
 	 * @param   array|Cron  Job to run
 	 */
-	public static function set($name, $job)
+	public static function set($name, $job, $group = null)
 	{
 		if (is_array($job))
 		{
-			$job = new Cron(reset($job), next($job));
+			$job = new Cron(reset($job), next($job), $group);
 		}
 
 		Cron::$_jobs[$name] = $job;
 	}
+
+    public static function set_group($group)
+	{
+        if(!is_string($group) && $group !== false)
+            return;
+
+		Cron::$_current_group = $group;
+	}
+
+    protected static function _get_lock_file()
+    {
+        if(self::$_current_lock === null)
+        {
+            $config = Kohana::$config->load('cron');
+            Cron::$_current_lock = $config->lock;
+
+            if(Cron::$_current_group !== null)
+            {
+                $pathinfo = pathinfo(Cron::$_current_lock);
+                $dirname = dirname(Cron::$_current_lock);
+
+                Cron::$_current_lock = $dirname . DIRECTORY_SEPARATOR . $pathinfo['filename'] . '.' . Cron::$_current_group;
+
+                if(!empty($pathinfo['extension']))
+                    Cron::$_current_lock .= '.' . $pathinfo['extension'];
+            }
+        }
+
+        return Cron::$_current_lock;
+
+    }
 
 	/**
 	 * Retrieve the timestamps of when jobs should run
@@ -43,16 +76,17 @@ class Kohana_Cron
 	 */
 	protected static function _lock()
 	{
-		$config = Kohana::$config->load('cron');
+        $config = Kohana::$config->load('cron');
+		$lock = Cron::_get_lock_file();
 		$result = FALSE;
 
-		if (file_exists($config->lock) AND ($stat = @stat($config->lock)) AND time() - $config->window < $stat['mtime'])
+		if (file_exists($lock) AND ($stat = @stat($lock)) AND time() - $config->window < $stat['mtime'])
 		{
 			// Lock exists and has not expired
 			return $result;
 		}
 
-		$fh = fopen($config->lock, 'a');
+		$fh = fopen($lock, 'a');
 
 		if (flock($fh, LOCK_EX))
 		{
@@ -88,8 +122,16 @@ class Kohana_Cron
 	 */
 	protected static function _unlock()
 	{
-		return @unlink(Kohana::$config->load('cron')->lock);
+		return @unlink(Cron::_get_lock_file());
 	}
+
+    protected static function _is_actual(Cron $job)
+    {
+        if(Cron::$_current_group === false)
+            return true;
+
+        return $job->_group == Cron::$_current_group;
+    }
 
 	/**
 	 * @return  boolean FALSE when another instance is running
@@ -111,6 +153,9 @@ class Kohana_Cron
 
 			foreach (Cron::$_jobs as $name => $job)
 			{
+                if(!Cron::_is_actual($job))
+                    continue;
+
 				if (empty(Cron::$_times[$name]) OR Cron::$_times[$name] < $threshold)
 				{
 					// Expired
@@ -147,11 +192,15 @@ class Kohana_Cron
 
 	protected $_callback;
 	protected $_period;
+    protected $_group = 'default';
 
-	public function __construct($period, $callback)
+	public function __construct($period, $callback, $group = null)
 	{
 		$this->_period = $period;
 		$this->_callback = $callback;
+
+        if($group !== null)
+            $this->_group = $group;
 	}
 
 	/**
