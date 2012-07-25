@@ -115,5 +115,26 @@ But second cron process (at next minute) will skip _catalog_task_ (because lock-
 _quick_tasks_ jobs
 
 
+## Session fix for cron
+
+If your callbacks uses sessions (via Session class), you will always get this exception:
+
+    Error reading session data.
+
+This is expected behavior. But its a problem for cron callbakcs execution. Solution is to overload Session::read() method
+in your application/classes folder:
+
+    abstract class Session extends Kohana_Session
+    {
+        public function read($id = NULL)
+        {
+            try {
+                parent::read($id);
+            } catch (Session_Exception $e) {
+                // ignore
+            }
+        }
+    }
+
   [1]: http://php.net/manual/language.pseudo-types.php#language.types.callback
   [2]: http://linux.die.net/man/5/crontab
