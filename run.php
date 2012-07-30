@@ -20,6 +20,9 @@ if (file_exists($system))
     if(!empty($_SERVER['argv'][1]))
         Cron::set_group($_SERVER['argv'][1]);
 
+    if(in_array('-f', $_SERVER['argv']))
+        Cron::set_force();
+
 	// If Cron has been run in APPPATH/bootstrap.php, this second call is harmless
 	Cron::run();
 }

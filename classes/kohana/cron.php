@@ -41,7 +41,7 @@ class Kohana_Cron
 
     public function set_force($value = true)
     {
-        $this->_force = !!$value;
+        self::$_force = !!$value;
     }
 
     protected static function _get_lock_file()
