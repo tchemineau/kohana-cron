@@ -162,7 +162,11 @@ class Kohana_Cron
                 if(!Cron::_is_actual($job))
                     continue;
 
-				if (empty(Cron::$_times[$name]) OR Cron::$_times[$name] < $threshold)
+                if(Cron::$_force)
+                {
+                    $job->execute();
+                }
+                elseif (empty(Cron::$_times[$name]) OR Cron::$_times[$name] < $threshold)
 				{
 					// Expired
 
