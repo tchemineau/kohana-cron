@@ -12,6 +12,7 @@ class Kohana_Cron
 	protected static $_jobs = array();
 	protected static $_times = array();
     protected static $_current_group = 'default';
+    protected static $_force = false;
     protected static $_current_lock;
 
 	/**
@@ -37,6 +38,11 @@ class Kohana_Cron
 
 		Cron::$_current_group = $group;
 	}
+
+    public function set_force($value = true)
+    {
+        $this->_force = !!$value;
+    }
 
     protected static function _get_lock_file()
     {
