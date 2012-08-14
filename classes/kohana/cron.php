@@ -145,10 +145,10 @@ class Kohana_Cron
 		return TRUE;
 	}
 
-	protected $_callback;
+	protected $_callback = null;
 	protected $_period;
 
-	public function __construct($period, $callback)
+	public function __construct($period, $callback = null)
 	{
 		$this->_period = $period;
 		$this->_callback = $callback;
@@ -159,7 +159,10 @@ class Kohana_Cron
 	 */
 	public function execute()
 	{
-		call_user_func($this->_callback);
+		if ($this->_callback !== null)
+		{
+			call_user_func($this->_callback);
+		}
 	}
 
 	/**
