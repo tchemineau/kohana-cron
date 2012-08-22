@@ -105,7 +105,6 @@ class Kohana_Cron
 	 */
 	protected static function _lock()
 	{
-        $config = Kohana::$config->load('cron');
 		$lock = Cron::_get_lock_file();
 		$result = FALSE;
 
