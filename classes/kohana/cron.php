@@ -109,7 +109,7 @@ class Kohana_Cron
 		$lock = Cron::_get_lock_file();
 		$result = FALSE;
 
-		if (file_exists($lock) AND ($stat = @stat($lock)) AND time() - $config->window < $stat['mtime'])
+		if (file_exists($lock))
 		{
 			// Lock exists and has not expired
 			return $result;
@@ -216,7 +216,6 @@ class Kohana_Cron
 					if ($job->next($threshold) < $now)
 					{
                         Cron::log('# Started within the window');
-
 						$job->execute();
 					}
 				}
