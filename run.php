@@ -17,12 +17,21 @@ if (file_exists($system))
 
 	include $system;
 
-    if(!empty($_SERVER['argv'][1]))
-        Cron::set_group($_SERVER['argv'][1]);
+    $args = (array)$_SERVER['argv'];
 
-    if(in_array('-f', $_SERVER['argv']))
-        Cron::set_force();
+    while($arg = array_shift($args)) {
+        switch($arg) {
+            case '--cron-group':
+                if(!($group = array_shift($args)))
+                    die("Group is undefined. Use `php -f path/to/file/run.php --cron-group group_name` syntax");
+                Cron::set_group($group);
+                break;
 
-	// If Cron has been run in APPPATH/bootstrap.php, this second call is harmless
-	Cron::run();
+            case '--cron-force':
+                Cron::set_force();
+                break;
+        }
+    }
+
+    Cron::run();
 }

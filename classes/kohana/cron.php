@@ -14,6 +14,8 @@ class Kohana_Cron
     protected static $_current_group = 'default';
     protected static $_force = false;
     protected static $_current_lock;
+    protected static $_log = true;
+    protected static $_date_logged = false;
 
 	/**
 	 * Registers a job to be run
@@ -39,9 +41,30 @@ class Kohana_Cron
 		Cron::$_current_group = $group;
 	}
 
-    public function set_force($value = true)
+    public static function set_force($value = true)
     {
         self::$_force = !!$value;
+    }
+
+    public static function set_log($value = true)
+    {
+        self::$_log = !!$value;
+    }
+
+    public static function log($str)
+    {
+        if(!self::$_log)
+            return;
+
+        if(!Cron::$_date_logged) {
+            Cron::$_date_logged = true;
+            echo date('Y-m-d') . "\n";
+            return self::log($str);
+        }
+
+        echo date('H:i:s') . ' ' . $str . "\n";
+        @flush();
+        @ob_flush();
     }
 
     protected static function _get_lock_file()
@@ -144,11 +167,22 @@ class Kohana_Cron
 	 */
 	public static function run()
 	{
+        $config = Kohana::$config->load('cron');
+
+        Cron::log('# Cron::run() started');
+        Cron::log('# Group: ' . Cron::$_current_group);
+        Cron::log('# Lock file: ' . Cron::_get_lock_file());
+        Cron::log('# Window: ' . $config->window);
+        Cron::log('# Force: ' . (self::$_force ? 'yes' : 'no') );
+
 		if (empty(Cron::$_jobs))
 			return TRUE;
 
-		if ( ! Cron::_lock())
+		if ( ! Cron::_lock()) {
+            Cron::log('# Locked');
+            Cron::log('# Cron::run() halted');
 			return FALSE;
+        }
 
 		try
 		{
@@ -162,31 +196,42 @@ class Kohana_Cron
                 if(!Cron::_is_actual($job))
                     continue;
 
+                Cron::log('');
+                Cron::log('# Job: ' . $name);
+                Cron::log('# Cron::$_times[' . $name . '] is ' . ( Cron::$_times[$name] ? date('Y-m-d H:i:s', Cron::$_times[$name]) : 'empty'));
+                Cron::log('# $threshold is ' . ( Cron::$_times[$name] ? date('Y-m-d H:i:s', $threshold) : 'empty'));
+                Cron::log('# $job->next($threshold) is ' . date('Y-m-d H:i:s', $job->next($threshold)));
+
                 if(Cron::$_force)
                 {
+                    Cron::log('# Force start');
                     $job->execute();
                 }
                 elseif (empty(Cron::$_times[$name]) OR Cron::$_times[$name] < $threshold)
 				{
-					// Expired
+                    Cron::log('# Expired');
 
 					Cron::$_times[$name] = $job->next($now);
 
 					if ($job->next($threshold) < $now)
 					{
-						// Within the window
+                        Cron::log('# Started within the window');
 
 						$job->execute();
 					}
 				}
 				elseif (Cron::$_times[$name] < $now)
 				{
-					// Within the window
+                    Cron::log('# Started within the window');
 
 					Cron::$_times[$name] = $job->next($now);
 
 					$job->execute();
 				}
+                else
+                {
+                    Cron::log('# Skipped');
+                }
 			}
 		}
 		catch (Exception $e) {}
@@ -197,6 +242,7 @@ class Kohana_Cron
 		if (isset($e))
 			throw $e;
 
+        Cron::log('# Cron::run() complited');
 		return TRUE;
 	}
 
