@@ -3,14 +3,19 @@
 /**
  * @package Cron
  *
- * @author      Chris Bandy
- * @copyright   (c) 2010 Chris Bandy
- * @license     http://www.opensource.org/licenses/isc-license.txt
+ * @author    Chris Bandy
+ * @copyright (c) 2010 Chris Bandy
+ * @license   http://www.opensource.org/licenses/isc-license.txt
  */
 class Kohana_Cron
 {
 	protected static $_jobs = array();
 	protected static $_times = array();
+	protected static $_current_group = 'default';
+	protected static $_force = false;
+	protected static $_current_lock;
+	protected static $_log = true;
+	protected static $_date_logged = false;
 
 	/**
 	 * Registers a job to be run
@@ -18,14 +23,71 @@ class Kohana_Cron
 	 * @param   string      Unique name
 	 * @param   array|Cron  Job to run
 	 */
-	public static function set($name, $job)
+	public static function set($name, $job, $group = null)
 	{
 		if (is_array($job))
 		{
-			$job = new Cron(reset($job), next($job));
+			$job = new Cron(reset($job), next($job), $group);
 		}
 
 		Cron::$_jobs[$name] = $job;
+	}
+
+	public static function set_group($group)
+	{
+		if(!is_string($group) && $group !== false)
+			return;
+
+		Cron::$_current_group = $group;
+	}
+
+	public static function set_force($value = true)
+	{
+		self::$_force = !!$value;
+	}
+
+	public static function set_log($value = true)
+	{
+		self::$_log = !!$value;
+	}
+
+	public static function log($str)
+	{
+		if(!self::$_log)
+			return;
+
+		if(!Cron::$_date_logged) {
+			Cron::$_date_logged = true;
+			echo date('Y-m-d') . "\n";
+			return self::log($str);
+		}
+
+		echo date('H:i:s') . ' ' . $str . "\n";
+		@flush();
+		@ob_flush();
+	}
+
+	protected static function _get_lock_file()
+	{
+		if(self::$_current_lock === null)
+		{
+			$config = Kohana::$config->load('cron');
+			Cron::$_current_lock = $config->lock;
+
+			if(Cron::$_current_group !== null)
+			{
+				$pathinfo = pathinfo(Cron::$_current_lock);
+				$dirname = dirname(Cron::$_current_lock);
+
+				Cron::$_current_lock = $dirname . DIRECTORY_SEPARATOR . $pathinfo['filename'] . '.' . Cron::$_current_group;
+
+				if(!empty($pathinfo['extension']))
+					Cron::$_current_lock .= '.' . $pathinfo['extension'];
+			}
+		}
+
+		return Cron::$_current_lock;
+
 	}
 
 	/**
@@ -43,16 +105,16 @@ class Kohana_Cron
 	 */
 	protected static function _lock()
 	{
-		$config = Kohana::$config->load('cron');
+		$lock = Cron::_get_lock_file();
 		$result = FALSE;
 
-		if (file_exists($config->lock) AND ($stat = @stat($config->lock)) AND time() - $config->window < $stat['mtime'])
+		if (file_exists($lock))
 		{
 			// Lock exists and has not expired
 			return $result;
 		}
 
-		$fh = fopen($config->lock, 'a');
+		$fh = fopen($lock, 'a');
 
 		if (flock($fh, LOCK_EX))
 		{
@@ -88,7 +150,15 @@ class Kohana_Cron
 	 */
 	protected static function _unlock()
 	{
-		return @unlink(Kohana::$config->load('cron')->lock);
+		return @unlink(Cron::_get_lock_file());
+	}
+
+	protected static function _is_actual(Cron $job)
+	{
+		if(Cron::$_current_group === false)
+			return true;
+
+		return $job->_group == Cron::$_current_group;
 	}
 
 	/**
@@ -96,11 +166,23 @@ class Kohana_Cron
 	 */
 	public static function run()
 	{
+		$config = Kohana::$config->load('cron');
+
+		Cron::log('# Cron::run() started');
+		Cron::log('# Group: ' . Cron::$_current_group);
+		Cron::log('# Lock file: ' . Cron::_get_lock_file());
+		Cron::log('# Window: ' . $config->window);
+		Cron::log('# Force: ' . (self::$_force ? 'yes' : 'no') );
+
 		if (empty(Cron::$_jobs))
 			return TRUE;
 
 		if ( ! Cron::_lock())
+		{
+			Cron::log('# Locked');
+			Cron::log('# Cron::run() halted');
 			return FALSE;
+		}
 
 		try
 		{
@@ -109,44 +191,67 @@ class Kohana_Cron
 			$now = time();
 			$threshold = $now - Kohana::$config->load('cron')->window;
 
-                        $used_times = array(); // to weed out unused schedules and jobs
+			/*
+			$used_times = array(); // to weed out unused schedules and jobs
 
 			foreach (Cron::$_jobs as $name => $job)
 			{
-                                // store e.g. 'job/0 * * * *' in cache so that
-                                // if the schedule is changed, it effectively
-                                // becomes a new job
-                                $name = $name.'/'.$job->_period;
+				// store e.g. 'job/0 * * * *' in cache so that
+				// if the schedule is changed, it effectively
+				// becomes a new job
+				$name = $name.'/'.$job->_period;
 
 				if (empty(Cron::$_times[$name]) OR Cron::$_times[$name] < $threshold)
+			*/
+
+			foreach (Cron::$_jobs as $name => $job)
+			{
+				if(!Cron::_is_actual($job))
+					continue;
+
+				Cron::log('');
+				Cron::log('# Job: ' . $name);
+				Cron::log('# Cron::$_times[' . $name . '] is ' . ( Cron::$_times[$name] ? date('Y-m-d H:i:s', Cron::$_times[$name]) : 'empty'));
+				Cron::log('# $threshold is ' . ( Cron::$_times[$name] ? date('Y-m-d H:i:s', $threshold) : 'empty'));
+				Cron::log('# $job->next($threshold) is ' . date('Y-m-d H:i:s', $job->next($threshold)));
+
+				if(Cron::$_force)
 				{
-					// Expired
+					Cron::log('# Force start');
+					$job->execute();
+				}
+				elseif (empty(Cron::$_times[$name]) OR Cron::$_times[$name] < $threshold)
+				{
+					Cron::log('# Expired');
 
 					Cron::$_times[$name] = $job->next($now);
 
 					if ($job->next($threshold) < $now)
 					{
-						// Within the window
-
+						Cron::log('# Started within the window');
 						$job->execute();
 					}
 				}
 				elseif (Cron::$_times[$name] < $now)
 				{
-					// Within the window
+					Cron::log('# Started within the window');
 
 					Cron::$_times[$name] = $job->next($now);
 
 					$job->execute();
 				}
 
-                                // store any job/schedule combos in use
-                                $used_times[$name] = Cron::$_times[$name];
+				// store any job/schedule combos in use
+				//$used_times[$name] = Cron::$_times[$name];
 
+				else
+				{
+					Cron::log('# Skipped');
+				}
 			}
 
-                        // store only used cron times and job names
-                        Cron::$_times = $used_times;
+			// store only used cron times and job names
+			//Cron::$_times = $used_times;
 		}
 		catch (Exception $e) {}
 
@@ -156,16 +261,21 @@ class Kohana_Cron
 		if (isset($e))
 			throw $e;
 
+		Cron::log('# Cron::run() complited');
 		return TRUE;
 	}
 
 	protected $_callback = null;
 	protected $_period;
+	protected $_group = 'default';
 
-	public function __construct($period, $callback = null)
+	public function __construct($period, $callback, $group = null)
 	{
 		$this->_period = $period;
 		$this->_callback = $callback;
+
+		if($group !== null)
+			$this->_group = $group;
 	}
 
 	/**
@@ -270,9 +380,9 @@ class Kohana_Cron
 
 				$this->_period = array(
 					'minutes'   => $this->_parse_crontab_field($minutes, 0, 59),
-					'hours'     => $this->_parse_crontab_field($hours, 0, 23),
+					'hours'	 => $this->_parse_crontab_field($hours, 0, 23),
 					'monthdays' => $this->_parse_crontab_field($monthdays, 1, 31),
-					'months'    => $this->_parse_crontab_field($months, 1, 12),
+					'months'	=> $this->_parse_crontab_field($months, 1, 12),
 					'weekdays'  => $this->_parse_crontab_field($weekdays, 0, 7)
 				);
 

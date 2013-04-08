@@ -17,6 +17,21 @@ if (file_exists($system))
 
 	include $system;
 
-	// If Cron has been run in APPPATH/bootstrap.php, this second call is harmless
-	Cron::run();
+    $args = (array)$_SERVER['argv'];
+
+    while($arg = array_shift($args)) {
+        switch($arg) {
+            case '--cron-group':
+                if(!($group = array_shift($args)))
+                    die("Group is undefined. Use `php -f path/to/file/run.php --cron-group group_name` syntax");
+                Cron::set_group($group);
+                break;
+
+            case '--cron-force':
+                Cron::set_force();
+                break;
+        }
+    }
+
+    Cron::run();
 }
